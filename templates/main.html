@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake News Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.5.0/Chart.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+        }
+        .navbar {
+            background-color: #1a1a2e; /* Consistent dark color */
+        }
+        .navbar-brand, .footer p, .footer a {
+            color: white;
+        }
+        .hero-section {
+            background-color: #0f3460;
+            color: white;
+            text-align: center;
+            padding: 60px 20px;
+        }
+        .wave-section {
+            position: relative;
+            background-color: #f0fdf4;
+            padding: 80px 20px 60px 20px;
+        }
+        .wave-section::before {
+            content: '';
+            position: absolute;
+            top: -60px;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            background: #0f3460;
+            clip-path: ellipse(70% 100% at 50% 0%);
+        }
+        .wave-section h2 {
+            font-size: 2rem;
+            font-weight: bold;
+            text-align: center;
+        }
+        .alert-box {
+            display: none; /* Initially hidden */
+            max-width: 600px;
+            margin: 0 auto 15px auto;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .alert-fake {
+            background-color: #f8d7da;
+            color: #842029;
+            border: 1px solid #f5c2c7;
+        }
+        .alert-real {
+            background-color: #d1e7dd;
+            color: #0f5132;
+            border: 1px solid #badbcc;
+        }
+        .progress {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .footer {
+    background-color: #1a1a2e; /* Matches the header */
+    color: white;
+    text-align: center;
+    margin-bottom: 0;
+        }
+        .footer a {
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        .img-fluid{
+            padding-top: 10px;
+            width: 200px;
+            height: 150px;
+        }
+        #pa-tag{
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <!-- <h1>FAKE NEWS DETECTION</h1> -->
+        <img src="{{ url_for('static', filename='Fake.png') }}" class="img-fluid" alt="Responsive image">
+        <p>AI MODEL FOR DETECTING FAKE NEWS</p>
+    </div>
+
+    <!-- Wave Section -->
+    <div class="wave-section">
+        <h2>Fake News Detection</h2>
+        <p class="text-center">Enter the news text below to check if it is fake or real:</p>
+
+        <!-- Alert Box -->
+        <div id="alert-box" class="alert-box"></div>
+
+        <!-- Progress Bar -->
+        <div class="chart-container" id="chart-container" style="display: none; height: 300px;">
+            <canvas id="classificationChart"></canvas>
+        </div>
+
+        <!-- Input Text Box -->
+        <div class="text-center mt-3">
+            <textarea id="news-input" class="form-control" rows="4" placeholder="Enter news text here..." style="max-width: 600px; margin: 0 auto;" required></textarea>
+            <button id="classify-btn" class="btn btn-success btn-lg mt-3">Check News!</button>
+        </div>
+    </div>
+     <!-- Footer -->
+     <div class="footer">
+        <p id="pa-tag"> Prince Sultan University | Website by Fake News Detection Team</p>
+    </div>
+    <script>
+        $(document).ready(function () {
+            console.log("Please select")
+            $("#classify-btn").on("click", function () {
+                // Get the news text from the input box
+                console.log("enter input")
+                const newsText = $("textarea#news-input").val();
+                console.log("text",newsText)
+
+                // Check if the input is empty
+                if (!newsText.trim()) {
+                    $("#alert-box")
+                        .text("Please enter some news text.")
+                        .removeClass("alert-fake alert-real")
+                        .addClass("alert-fake")
+                        .fadeIn();
+                    $("#progress-bar-container").hide();
+                    return;
+                }
+
+                // Send the input to the Flask API via POST request
+                $.ajax({
+                    url: "http://localhost:8001/classify-news", // Replace with your Flask API endpoint
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({ news: newsText }),
+                    success: function (response) {
+                        // Extract label and percentage
+                        let label = response.result;
+                        let percentage = (response.percentage*100).toFixed(2);
+                        console.log(label)
+                        console.log(percentage)
+                        let fakePercentage,realPercentage=0;
+
+                        // Update the alert box
+                        if (label === "Fake") {
+                             fakePercentage=percentage
+                             realPercentage=100-fakePercentage
+                            $("#alert-box")
+                                .text(`The news is likely FAKE (${percentage}%).`)
+                                .removeClass("alert-real")
+                                .addClass("alert-fake")
+                                .fadeIn();
+                        } else {
+                             realPercentage=percentage
+                             fakePercentage=100-realPercentage
+                            $("#alert-box")
+                                .text(`The news is likely REAL (${percentage}%).`)
+                                .removeClass("alert-fake")
+                                .addClass("alert-real")
+                                .fadeIn();
+                        }
+                        renderChart(fakePercentage, realPercentage);
+                        
+                    },
+                    error: function (xhr, status, error) {
+                        // Handle errors
+                        $("#alert-box")
+                            .text("An error occurred: " + error)
+                            .removeClass("alert-real")
+                            .addClass("alert-fake")
+                            .fadeIn();
+                        $("#progress-bar-container, #chart-container").hide();
+                    }
+                });
+            });
+
+        // Render Bar Chart using Chart.js
+        function renderChart(fakePercentage, realPercentage) {
+            const ctx = document.getElementById("classificationChart").getContext("2d");
+            const chartData = {
+                labels: ["Fake News", "Real News"], // X-axis labels
+                datasets: [
+                    {
+                        label: "Probability (%)", // Dataset label
+                        data: [fakePercentage, realPercentage], // Fake and Real percentages
+                        backgroundColor: ["#FF4136", "#2ECC40"], // Bar colors: Red and Green
+                        borderColor: ["#FF4136", "#2ECC40"], // Border colors
+                        borderWidth: 1, // Border thickness
+                    },
+                ],
+            };
+
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: "top",
+                    },
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100, // Max percentage
+                        title: {
+                            display: true,
+                            text: "Probability (%)",
+                        },
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: "News Type",
+                        },
+                    },
+                },
+            };
+
+            // // Destroy any existing chart instance
+            // if (window.classificationChart) {
+            //     window.classificationChart.destroy();
+            // }
+
+            // Create the new chart instance
+            window.classificationChart = new Chart(ctx, {
+                type: "bar",
+                data: chartData,
+                options: chartOptions,
+            });
+
+            // Show the chart container
+            $("#chart-container").fadeIn();
+        }
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
